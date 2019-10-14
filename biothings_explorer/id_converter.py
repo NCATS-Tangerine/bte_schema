@@ -23,23 +23,29 @@ class IDConverter():
         self.semantic_type_api_mapping = {'Gene': 'mygene.info',
                                           'Variant': 'myvariant.info',
                                           'ChemicalSubstance': 'mychem.info',
-                                          'DiseaseOrPhenotypicFeature': "mydisease.info"}
+                                          'DiseaseOrPhenotypicFeature': "mydisease.info",
+                                          "AnatomicalEntity": "semmedanatomy",
+                                          "PhenotypicFeature": "semmedphenotype",
+                                          "Pathway": "pathway",
+                                          "MolecularActivity": "mf",
+                                          "CellularComponent": "cc",
+                                          "BiologicalProcess": "bp",
+                                          }
 
     def fetch_schema_mapping_file(self, api):
         """Fetch schema mapping file from the registry"""
         return self.registry.registry[api]['mapping']
 
     def subset_mapping_file(self, mapping_file):
-        return {k:v for (k,v) in mapping_file.items() if k in (["@context", "@type"] + self.registry.mp.id_list)}
+        return {k:v for (k,v) in mapping_file.items() if k in (self.registry.mp.id_list + ["bts:name"])}
 
     def get_output_fields(self, mapping_file):
         fields = []
         for k, v in mapping_file.items():
-            if k in self.registry.mp.id_list:
-                if isinstance(v, list):
-                    fields += v
-                elif isinstance(v, str):
-                    fields.append(v)
+            if isinstance(v, list):
+                fields += v
+            elif isinstance(v, str):
+                fields.append(v)
         return ','.join(fields)
 
     def get_input_fields(self, mapping_file, _type):
@@ -71,23 +77,34 @@ class IDConverter():
                 for _id in ids:
                     results[_type + ':' + _id] = {'bts:' + _type: [_id]}
             else:
-                ids = ','.join(ids)
-                types.append(_type)
                 mapping_file = self.fetch_schema_mapping_file(api)
                 mapping_file = self.subset_mapping_file(mapping_file)
-                mapping_files.append(mapping_file)
-                apis.append(api)
                 if self.get_input_fields(mapping_file, _type):
-                    api_call_inputs.append({"api": api,
-                                            "input": self.get_input_fields(mapping_file, _type),
-                                            "output": self.get_output_fields(mapping_file),
-                                            "values": ids,
-                                            "batch_mode": True
-                                            })
+                    if type(ids) == list and len(ids) > 1000:
+                        for i in range(0, len(ids), 1000):
+                            api_call_inputs.append({"api": api,
+                                                "input": self.get_input_fields(mapping_file, _type),
+                                                "output": self.get_output_fields(mapping_file),
+                                                "values": ','.join(ids[i:i+1000]),
+                                                "batch_mode": True
+                                                })
+                            types.append(_type)
+                            mapping_files.append(mapping_file)
+                            apis.append(api)
+                    else:
+                        api_call_inputs.append({"api": api,
+                                                "input": self.get_input_fields(mapping_file, _type),
+                                                "output": self.get_output_fields(mapping_file),
+                                                "values": ','.join(ids),
+                                                "batch_mode": True
+                                                })
+                        types.append(_type)
+                        mapping_files.append(mapping_file)
+                        apis.append(api)
                 else:
                     if _type.startswith("bts:"):
                         _type = _type[4:]
-                    for _id in ids.split(','):
+                    for _id in ids:
                         results[_type + ':' + _id] = {'bts:' + _type: [_id]}
         # make API calls asynchronously and gather all outputs
         responses = self.caller.call_apis(api_call_inputs, size=10)

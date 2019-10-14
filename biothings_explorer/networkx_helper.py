@@ -1,4 +1,8 @@
 from collections import defaultdict
+from graphviz import Digraph
+import pandas as pd
+import networkx as nx
+import itertools
 
 
 def load_res_to_networkx(_res, G, labels, id_mapping, output_id_types):
@@ -76,8 +80,11 @@ def add_equivalent_ids_to_nodes(G, IDConverter):
         idc_inputs.append((v, input_id, input_cls))
     # find equivalent ids
     equivalent_ids = IDConverter.convert_ids(idc_inputs)
+    # print("equivalent_ids", equivalent_ids)
     # populate nodes with equivalent ids
     for m, n in equivalent_ids.items():
+        # if m.startswith("umls"):
+            # print(m, n)
         G.node[m.split(':', 1)[-1]]['equivalent_ids'] = n
     return (G, equivalent_ids)
 
@@ -97,6 +104,65 @@ def merge_two_networkx_graphs(G1, G2):
     G1.add_nodes_from(nodes_to_add)
     G1.add_edges_from(G2.edges(data=True))
     return G1
+
+
+def networkx_to_graphvis(G):
+    f = Digraph()
+    for k, v, j in G.edges(data=True):
+        f.edge(k, v, j['label'])
+    return f
+
+
+def networkx_to_pandas_df(G):
+    data = []
+    if len(G.nodes()) > 1:
+        for k, v, j in G.edges(data=True):
+            info = j.get("info")
+            pubmed = None
+            api = None
+            if info:
+                pubmed = info.get("bts:pubmed")
+                api = info.get("$api")
+            source = j.get('source')
+            label = j.get('label')
+            data.append({'n1': k, 'n1_type': G.nodes[k]['type'],
+                         'n2': v, 'n2_type': G.nodes[v]['type'],
+                         'predicate': label,
+                         'datasource': source,
+                         'api': api,
+                         'pubmed': pubmed})
+    return pd.DataFrame(data)
+
+
+def connect_networkx_to_pandas_df(G, paths):
+    data = []
+    for _path in paths:
+        if len(_path) == 3:
+            start_edges = dict(G[_path[0]][_path[1]]).values()
+            end_edges = dict(G[_path[1]][_path[2]]).values()
+            for k, v in itertools.product(start_edges, end_edges):
+                data.append({'n1': _path[0],
+                             'n1_type': G.nodes[_path[0]]['type'],
+                             'pred1': k['label'],
+                             'n2': _path[1],
+                             'n2_type': G.nodes[_path[1]]['type'],
+                             'pred2': v['label'],
+                             'n3': _path[2],
+                             'n3_type': G.nodes[_path[2]]['type']})
+        else:
+            edges = G[_path[0]][_path[1]]
+            for _edge in edges:
+                data.append({'n1': _path[0],
+                             'n1_type': G.nodes[_path[0]]['type'],
+                             'pred1': _edge['label'],
+                             'n2': _path[1],
+                             'n2_type': G.nodes[_path[1]]['type'],
+                             })
+    return pd.DataFrame(data)
+
+
+
+
 
 
 def networkx_json_to_visjs(res):

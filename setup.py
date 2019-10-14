@@ -2,12 +2,16 @@ from setuptools import setup
 
 
 install_requires = [
+    'jupyter',
+    'notebook==5.7.5',
+    'tornado==4.5.3',
     'jsonschema>=3.0.1',
     'networkx>=2.3',
     'jsonpath-rw>=1.4.0',
     'requests>=2.21.0',
     'graphviz>=0.11.1',
-    'aiohttp'
+    'aiohttp',
+    'pandas'
 ]
 
 
@@ -41,5 +45,5 @@ setup(
         "Topic :: Scientific/Engineering :: Bio-Informatics",
     ],
     install_requires=install_requires,
-    dependency_links=['git+ssh://git@github.com/biothings/biothings_schema.py#egg=biothings_schema.py']
+    dependency_links=['https://github.com/biothings/biothings_schema.py/master#egg=biothings_schema']
 )
